@@ -101,7 +101,7 @@ fi_flag = 1
 # stability_flag only functional for high fidelity model currently!
 # stability_flag = 1 -> unstable xcg 35% model
 # stability_flag = 0 -> stable xcg 25% model
-stability_flag = 0
+stab_flag = 0
 
 # In[wrap for input]  
 
@@ -109,4 +109,4 @@ initial_state_vector = np.array([npos, epos, h, phi, theta, psi, vt, alpha, beta
     
 aircraft_properties = [Ixx, Iyy, Izz, Ixz, weight, b, S, cbar, He, x_cg, x_cg_ref]
 
-simulation_parameters = [time_step, time_start, time_end, g, stability_flag]
+simulation_parameters = [time_step, time_start, time_end, g, stab_flag]

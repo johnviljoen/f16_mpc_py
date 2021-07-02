@@ -30,7 +30,7 @@ from sys import exit
 # unwrap initial inputs for debugging
 npos, epos, h, phi, theta, psi, vt, alpha, beta, P, Q, R, P3, dh, da, dr, lef, fi_flag = initial_state_vector
 # Ixx, Iyy, Izz, Ixz, weight, b, S, cbar, He, x_cg, x_cg_ref = aircraft_properties
-time_step, time_start, time_end, g, stability_flag = simulation_parameters
+time_step, time_start, time_end, g, stab_flag = simulation_parameters
 fi_flag = 1
 
 # convert inputs to correct units for nlplant.c
@@ -39,9 +39,9 @@ f2m = 1/m2f # feet to metres conversion
 initial_state_vector_ft_rad = np.array([npos*m2f, epos*m2f, h*m2f, phi, theta, psi, vt*m2f, alpha, beta, P, Q, R, P3, dh, da, dr, lef, fi_flag])
 
 # create interface with c shared library .so file in folder "C"
-if stability_flag == 1:
+if stab_flag == 1:
     so_file = os.getcwd() + "/C/nlplant_xcg35.so"
-elif stability_flag == 0:
+elif stab_flag == 0:
     so_file = os.getcwd() + "/C/nlplant_xcg25.so"
     
 nlplant = CDLL(so_file)
