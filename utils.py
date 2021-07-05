@@ -6,14 +6,16 @@ Created on Sat Jul  3 00:06:54 2021
 @author: johnviljoen
 """
 
-import numpy as np
+# import pi for visualisation rad to deg conversion
+from numpy import pi
 
-import os
-
-from ctypes import CDLL
-import ctypes
-
+# import time for tic toc functions
 import time
+
+# import matplotlib for visualisation
+import matplotlib.pyplot as plt
+
+# In[]
 
 def TicTocGenerator():
     # Generator that returns time differences
@@ -36,82 +38,63 @@ def toc(tempBool=True):
 def tic():
     # Records a time in TicToc, marks the beginning of a time interval
     toc(False)
-    
-# In[]
-
-import control
-
-control.iosys.InputOutputSystem.linearize
-
-# port the MATLAB 'linmodv5' according to: https://uk.mathworks.com/help/slcontrol/ug/linearizing-nonlinear-models.html#:~:text=Linearization%20is%20a%20linear%20approximation,y%20%3D%202%20x%20%E2%88%92%201%20.
-def linearise(x, u, lin_paras):
-    
-    nlplant = lin_paras.get("nlplant")
-    fi_flag = lin_paras.get("fi_flag")
-    eps = lin_paras.get("eps")
-    
-    # para[0] = delta perturb value
-    # para[1] = linearisation time
-    # para[2] = flag for removing redundant states
-    para = [eps, 0, 0]
-    
-    # x, u are the current state and inputs respectively
-    # xpert and upert are their perturbations for linearisation
-    # all values are default according to the aforementioned MATLAB documentation
-    xpert = para[0] + 1e-3*para[0]*abs(x)
-    upert = para[0] + 1e-3*para[0]*abs(u)
-    
-    # create array to find xdot
-    xdot_nopert = np.zeros(18)
-    xdot_pert = np.zeros(18)
-    
-    # find non perturbed xdot
-    nlplant.Nlplant(ctypes.c_void_p(x.ctypes.data), ctypes.c_void_p(xdot_nopert.ctypes.data), ctypes.c_int(fi_flag))
-    nlplant.Nlplant(ctypes.c_void_p(xpert.ctypes.data), ctypes.c_void_p(xdot_pert.ctypes.data), ctypes.c_int(fi_flag))
-        
-    # Create empty matrices that we can fill up with linearizations
-    A = np.zeros((17, 17))     # Dynamics matrix (nstates, nstates)
-    B = np.zeros((17, 4))      # Input matrix (nstates, ninputs)
-    C = np.zeros((6, 17))      # Output matrix (noutputs, nstates)
-    D = np.zeros((6, 4))       # Direct term (noutputs, ninputs)
-    
-    # Perturb each of the state variables and compute linearization
-    for i in range(17):
-        dx = np.zeros((17,))
-        dx[i] = eps
-        A[:, i] = (xdot_pert[0:17] - xdot_nopert[0:17]) / eps
-        #C[:, i] = (self._out(t, x0 + dx, u0) - xpert[3,4,6,9,10,11]) / eps
-
-    # Perturb each of the input variables and compute linearization
-    # for i in range(ninputs):
-    #     du = np.zeros((ninputs,))
-    #     du[i] = eps
-    #     B[:, i] = (self._rhs(t, x0, u0 + du) - F0) / eps
-    #     D[:, i] = (self._out(t, x0, u0 + du) - H0) / eps
-    
-    return A
-
-so_file = os.getcwd() + "/C/nlplant_xcg35.so"
-
-# extract nlplant
-nlplant = CDLL(so_file)
-
-lin_paras = {
-    "nlplant": nlplant,
-    "fi_flag": 1,
-    "eps": 1e-06
-    }
-
-
-x = np.array([ 1.97022009e+03,  1.85914048e+00,  1.03286930e+04,  1.12673860e-01,
-        9.81710712e-01,  7.01193663e-02,  6.01968835e+02,  4.11195845e-01,
-       -4.03661643e-03,  1.12353455e-01,  4.68585209e-01,  3.90562575e-02,
-        2.88664680e+03, -2.03850000e+00, -8.75770000e-02, -3.87700000e-02,
-        2.49913499e+01])
-
-u = np.array([ 2.8866468e+03, -2.0385000e+00, -8.7577000e-02, -3.8770000e-02])
-
-A = linearise(x,u,lin_paras)
 
 # In[]
 
+def vis(x_storage, rng):
+
+    fig, axs = plt.subplots(12, 1)
+    #fig.suptitle('Vertically stacked subplots')
+    axs[0].plot(rng, x_storage[:,0])
+    axs[0].set_ylabel('npos (ft)')
+    
+    axs[1].plot(rng, x_storage[:,1])
+    axs[1].set_ylabel('epos (ft)')
+    
+    axs[2].plot(rng, x_storage[:,2])
+    axs[2].set_ylabel('h (ft)')
+    
+    axs[3].plot(rng, x_storage[:,3])
+    axs[3].set_ylabel('$\phi$ (rad)')
+    
+    axs[4].plot(rng, x_storage[:,4])
+    axs[4].set_ylabel('$\theta$ (rad)')
+    
+    axs[5].plot(rng, x_storage[:,5])
+    axs[5].set_ylabel('$\psi$ (rad)')
+    
+    axs[6].plot(rng, x_storage[:,6])
+    axs[6].set_ylabel("V_t (ft/s)")
+    
+    axs[7].plot(rng, x_storage[:,7]*180/pi)
+    axs[7].set_ylabel('alpha (deg)')
+    
+    axs[8].plot(rng, x_storage[:,8]*180/pi)
+    axs[8].set_ylabel('beta (deg)')
+    
+    axs[9].plot(rng, x_storage[:,9]*180/pi)
+    axs[9].set_ylabel('p (deg/s)')
+    
+    axs[10].plot(rng, x_storage[:,10]*180/pi)
+    axs[10].set_ylabel('q (deg/s)')
+    
+    axs[11].plot(rng, x_storage[:,11]*180/pi)
+    axs[11].set_ylabel('r (deg/s)')
+    axs[11].set_xlabel('time (s)')
+    
+    fig2, axs2 = plt.subplots(5,1)
+    
+    axs2[0].plot(rng, x_storage[:,12])
+    axs2[0].set_ylabel('P3')
+    
+    axs2[1].plot(rng, x_storage[:,13])
+    axs2[1].set_ylabel('dh')
+    
+    axs2[2].plot(rng, x_storage[:,14])
+    axs2[2].set_ylabel('da')
+    
+    axs2[3].plot(rng, x_storage[:,15])
+    axs2[3].set_ylabel('dr')
+    
+    axs2[4].plot(rng, x_storage[:,16])
+    axs2[4].set_ylabel('lef')

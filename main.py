@@ -9,8 +9,8 @@ import os
 import numpy as np
 from numpy import pi
 
-# import matplotlib for visualisation
-import matplotlib.pyplot as plt
+# visualisation and timing tools
+from utils import tic, toc, vis
 
 # import progressbar for convenience
 import progressbar
@@ -20,6 +20,9 @@ from parameters import initial_state_vector, simulation_parameters
 
 # import exit() function for debugging
 from sys import exit
+
+# import scipy fmin for trim function
+from scipy.optimize import minimize
 
 # In[]
 
@@ -53,7 +56,6 @@ xdot = np.zeros(18)
 # initialise Mach, qbar, ps storage
 coeff = np.zeros(3)
 
-from utils import tic, toc
 
 # In[]
 
@@ -121,11 +123,11 @@ def upd_rud(rud_cmd, rud_state, time_step):
     rud_state += rud_err*time_step
     return rud_state, rud_err
 
-def upd_lef(lef_state_1, lef_state_2, time_step, nlplant):
+def upd_lef(h, V, coeff, alpha, lef_state_1, lef_state_2, time_step, nlplant):
     
-    nlplant.atmos(ctypes.c_double(x[2]),ctypes.c_double(x[6]),ctypes.c_void_p(coeff.ctypes.data))
+    nlplant.atmos(ctypes.c_double(h),ctypes.c_double(V),ctypes.c_void_p(coeff.ctypes.data))
     atmos_out = coeff[1]/coeff[2] * 9.05
-    alpha_deg = x[7]*180/pi
+    alpha_deg = alpha*180/pi
     
     LF_err = alpha_deg - (lef_state_1 + (2 * alpha_deg))
     lef_state_1 += LF_err*7.25*time_step
@@ -147,6 +149,7 @@ def calc_xdot(x, u, fi_flag, nlplant):
     # initialise variables
     xdot = np.zeros(18)
     temp = np.zeros(6)
+    coeff = np.zeros(3)
     
     #--------------Thrust Model--------------#
     temp[0] = upd_thrust(u[0], x[12], time_step)[1]
@@ -157,7 +160,7 @@ def calc_xdot(x, u, fi_flag, nlplant):
     #--------------rudder model--------------#
     temp[3] = upd_rud(u[3], x[15], time_step)[1]
     #--------leading edge flap model---------#
-    temp[5], temp[4] = upd_lef(x[17], x[16], time_step, nlplant)[2:4]
+    temp[5], temp[4] = upd_lef(x[2], x[6], coeff, x[7], x[17], x[16], time_step, nlplant)[2:4]
     
     #----------run nlplant for xdot----------#
     nlplant.Nlplant(ctypes.c_void_p(x.ctypes.data), ctypes.c_void_p(xdot.ctypes.data), ctypes.c_int(fi_flag))    
@@ -179,6 +182,132 @@ def upd_sim(x, u, fi_flag, time_step, nlplant):
 def calc_out(x, u, output_vars):
     # return the variables    
     return x[output_vars]
+
+# calculate objective function for trimming
+def obj_func(UX0, *args):
+    
+    V = v_t
+    h = h_t
+    
+    # h = paras.get('h')
+    # V = paras.get('V')
+    # fi_flag = paras.get('fi_flag')
+    # nlplant = paras.get('nlplant')
+        
+    P3, dh, da, dr, alpha = UX0
+    
+    npos = 0
+    epos = 0
+    #h
+    phi = 0
+    #theta = alpha in straight level flight
+    psi = 0
+    #V
+    #alpha
+    beta = 0
+    p = 0
+    q = 0
+    r = 0
+    #P3
+    #dh
+    #da
+    #dr
+    #dlef1
+    #dlef2
+    
+    rho0 = 2.377e-3
+    tfac = 1 - 0.703e-5*h
+    
+    temp = 519*tfac
+    if h >= 35000:
+        temp = 390
+        
+    rho = rho0*tfac**4.14
+    qbar = 0.5*rho*V**2
+    ps = 1715*rho*temp
+    
+    dlef = 1.38*alpha*180/pi - 9.05*qbar/ps + 1.45
+    
+    x = np.array([npos, epos, h, phi, alpha, psi, V, alpha, beta, p, q, r, P3, dh, da, dr, dlef, -alpha*180/pi])
+    
+    # set thrust limits
+    if x[12] > 19000:
+        x[12] = 19000
+    elif x[12] < 1000:
+        x[12] = 1000
+       
+    # set elevator limits
+    if x[13] > 25:
+        x[13] = 25
+    elif x[13] < -25:
+        x[13] = -25
+        
+    # set aileron limits
+    if x[14] > 21.5:
+        x[14] = 21.5
+    elif x[14] <-21.5:
+        x[14] = -21.5
+        
+    # set rudder limits
+    if x[15] > 30:
+        x[15] = 30
+    elif x[15] < -30:
+        x[15] = -30
+        
+    # set alpha limits
+    if x[7] > 90*pi/180:
+        x[7] = 90*pi/180
+    elif x[7] < -20*pi/180:
+        x[7] = -20*pi/180
+        
+    
+    
+    u = np.array([x[12],x[13],x[14],x[15]])
+    
+    xdot = calc_xdot(x, u, fi_flag, nlplant)
+    
+    phi_w = 10
+    theta_w = 10
+    psi_w = 10
+    
+    weight = np.array([0, 0, 5, phi_w, theta_w, psi_w, 2, 10, 10, 10, 10, 10]).transpose()
+    
+    cost = np.matmul(weight,xdot[0:12]**2)
+    
+    return cost
+    
+
+def trim(h_t, v_t, fi_flag, nlplant):
+    
+    # initial guesses
+    thrust = 5000           # thrust, lbs
+    elevator = -0.09        # elevator, degrees
+    alpha = 8.49            # AOA, degrees
+    rudder = -0.01          # rudder angle, degrees
+    aileron = 0.01          # aileron, degrees
+    
+    UX0 = [thrust, elevator, alpha, rudder, aileron]
+            
+    opt = minimize(obj_func, UX0, args=((h_t, v_t, fi_flag, nlplant)), method='Nelder-Mead',tol=1e-10,options={'maxiter':5e+04})
+    
+    P3_t, dstab_t, da_t, dr_t, alpha_t  = opt.x
+    
+    rho0 = 2.377e-3
+    tfac = 1 - 0.703e-5*h_t
+    
+    temp = 519*tfac
+    if h_t >= 35000:
+        temp = 390
+        
+    rho = rho0*tfac**4.14
+    qbar = 0.5*rho*v_t**2
+    ps = 1715*rho*temp
+    
+    dlef = 1.38*alpha_t*180/pi - 9.05*qbar/ps + 1.45
+    
+    x_trim = np.array([0, 0, h_t, 0, alpha_t, 0, v_t, alpha_t, 0, 0, 0, 0, P3_t, dstab_t, da_t, dr_t, dlef, -alpha_t*180/pi])
+    
+    return x_trim, opt
 
 def linearise(x, u, output_vars, fi_flag, nlplant, eps):
     
@@ -207,6 +336,17 @@ def linearise(x, u, output_vars, fi_flag, nlplant, eps):
     
     return A, B, C, D
 
+# trim aircraft
+
+h_t = 10000
+v_t = 700
+
+x_trim, opt = trim(h_t, v_t, fi_flag, nlplant)
+
+x = x_trim
+
+u = x[12:16]
+
 tic()
 
 for idx, val in enumerate(rng):
@@ -215,7 +355,7 @@ for idx, val in enumerate(rng):
     #------------linearise model-------------#
     #----------------------------------------#
     
-    [A[:,:,idx], B[:,:,idx], C[:,:,idx], D[:,:,idx]] = linearise(x, u, output_vars, fi_flag, nlplant, eps)
+    #[A[:,:,idx], B[:,:,idx], C[:,:,idx], D[:,:,idx]] = linearise(x, u, output_vars, fi_flag, nlplant, eps)
     
     #----------------------------------------#
     #--------------Take Action---------------#
@@ -242,61 +382,8 @@ toc()
 
 #%matplotlib qt
 
-fig, axs = plt.subplots(12, 1)
-#fig.suptitle('Vertically stacked subplots')
-axs[0].plot(rng, x_storage[:,0])
-axs[0].set_ylabel('npos (ft)')
 
-axs[1].plot(rng, x_storage[:,1])
-axs[1].set_ylabel('epos (ft)')
 
-axs[2].plot(rng, x_storage[:,2])
-axs[2].set_ylabel('h (ft)')
-
-axs[3].plot(rng, x_storage[:,3])
-axs[3].set_ylabel('$\phi$ (rad)')
-
-axs[4].plot(rng, x_storage[:,4])
-axs[4].set_ylabel('$\theta$ (rad)')
-
-axs[5].plot(rng, x_storage[:,5])
-axs[5].set_ylabel('$\psi$ (rad)')
-
-axs[6].plot(rng, x_storage[:,6])
-axs[6].set_ylabel("V_t (ft/s)")
-
-axs[7].plot(rng, x_storage[:,7]*180/pi)
-axs[7].set_ylabel('alpha (deg)')
-
-axs[8].plot(rng, x_storage[:,8]*180/pi)
-axs[8].set_ylabel('beta (deg)')
-
-axs[9].plot(rng, x_storage[:,9]*180/pi)
-axs[9].set_ylabel('p (deg/s)')
-
-axs[10].plot(rng, x_storage[:,10]*180/pi)
-axs[10].set_ylabel('q (deg/s)')
-
-axs[11].plot(rng, x_storage[:,11]*180/pi)
-axs[11].set_ylabel('r (deg/s)')
-axs[11].set_xlabel('time (s)')
-
-fig2, axs2 = plt.subplots(5,1)
-
-axs2[0].plot(rng, x_storage[:,12])
-axs2[0].set_ylabel('P3')
-
-axs2[1].plot(rng, x_storage[:,13])
-axs2[1].set_ylabel('dh')
-
-axs2[2].plot(rng, x_storage[:,14])
-axs2[2].set_ylabel('da')
-
-axs2[3].plot(rng, x_storage[:,15])
-axs2[3].set_ylabel('dr')
-
-axs2[4].plot(rng, x_storage[:,16])
-axs2[4].set_ylabel('lef')
-
+vis(x_storage, rng)
 
 # %%
