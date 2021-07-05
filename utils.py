@@ -38,6 +38,8 @@ def toc(tempBool=True):
 def tic():
     # Records a time in TicToc, marks the beginning of a time interval
     toc(False)
+    
+
 
 # In[]
 

@@ -18,11 +18,11 @@ import progressbar
 # import parameters
 from parameters import initial_state_vector, simulation_parameters
 
-# import exit() function for debugging
-from sys import exit
-
 # import scipy fmin for trim function
 from scipy.optimize import minimize
+
+# import exit() function for debugging
+from sys import exit
 
 # In[]
 
@@ -63,28 +63,7 @@ coeff = np.zeros(3)
 #---------------------------------Simulate-----------------------------------#
 #----------------------------------------------------------------------------#
 
-rng = np.linspace(time_start, time_end, int((time_end-time_start)/time_step))
-bar = progressbar.ProgressBar(maxval=len(rng)).start()
 
-#linearisation eps
-eps = 1e-05
-
-T_cmd = 2886.6468
-dstab_cmd = -2.0385
-ail_cmd = -0.087577
-rud_cmd = -0.03877
-
-u = [T_cmd, dstab_cmd, ail_cmd, rud_cmd]
-
-output_vars = [6,7,8,9,10,11]
-
-# create storage
-x_storage = np.zeros([len(rng),len(x)])
-xdot_storage = np.zeros([len(rng),len(xdot)])
-A = np.zeros([len(x),len(x),len(rng)])
-B = np.zeros([len(x),len(u),len(rng)])
-C = np.zeros([len(output_vars),len(x),len(rng)])
-D = np.zeros([len(output_vars),len(u),len(rng)])
 
 
 def upd_thrust(T_cmd, T_state, time_step):
@@ -188,11 +167,6 @@ def obj_func(UX0, *args):
     
     V = v_t
     h = h_t
-    
-    # h = paras.get('h')
-    # V = paras.get('V')
-    # fi_flag = paras.get('fi_flag')
-    # nlplant = paras.get('nlplant')
         
     P3, dh, da, dr, alpha = UX0
     
@@ -260,8 +234,6 @@ def obj_func(UX0, *args):
     elif x[7] < -20*pi/180:
         x[7] = -20*pi/180
         
-    
-    
     u = np.array([x[12],x[13],x[14],x[15]])
     
     xdot = calc_xdot(x, u, fi_flag, nlplant)
@@ -336,16 +308,31 @@ def linearise(x, u, output_vars, fi_flag, nlplant, eps):
     
     return A, B, C, D
 
-# trim aircraft
+rng = np.linspace(time_start, time_end, int((time_end-time_start)/time_step))
+bar = progressbar.ProgressBar(maxval=len(rng)).start()
 
+#linearisation eps
+eps = 1e-05
+
+output_vars = [6,7,8,9,10,11]
+
+# trim aircraft
 h_t = 10000
 v_t = 700
 
-x_trim, opt = trim(h_t, v_t, fi_flag, nlplant)
+x, opt_res = trim(h_t, v_t, fi_flag, nlplant)
 
-x = x_trim
+# x = x_trim
 
 u = x[12:16]
+
+# create storage
+x_storage = np.zeros([len(rng),len(x)])
+xdot_storage = np.zeros([len(rng),len(xdot)])
+A = np.zeros([len(x),len(x),len(rng)])
+B = np.zeros([len(x),len(u),len(rng)])
+C = np.zeros([len(output_vars),len(x),len(rng)])
+D = np.zeros([len(output_vars),len(u),len(rng)])
 
 tic()
 
@@ -355,11 +342,17 @@ for idx, val in enumerate(rng):
     #------------linearise model-------------#
     #----------------------------------------#
     
-    #[A[:,:,idx], B[:,:,idx], C[:,:,idx], D[:,:,idx]] = linearise(x, u, output_vars, fi_flag, nlplant, eps)
+    [A[:,:,idx], B[:,:,idx], C[:,:,idx], D[:,:,idx]] = linearise(x, u, output_vars, fi_flag, nlplant, eps)
     
     #----------------------------------------#
     #--------------Take Action---------------#
     #----------------------------------------#
+    
+    
+    
+    #----------------------------------------#
+    #--------------Integrator----------------#
+    #----------------------------------------#    
     
     x = upd_sim(x, u, fi_flag, time_step, nlplant)
     
@@ -381,8 +374,6 @@ toc()
 #----------------------------------------------------------------------------#
 
 #%matplotlib qt
-
-
 
 vis(x_storage, rng)
 
