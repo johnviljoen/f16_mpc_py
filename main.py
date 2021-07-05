@@ -64,12 +64,26 @@ from utils import tic, toc
 rng = np.linspace(time_start, time_end, int((time_end-time_start)/time_step))
 bar = progressbar.ProgressBar(maxval=len(rng)).start()
 
+#linearisation eps
+eps = 1e-05
+
+T_cmd = 2886.6468
+dstab_cmd = -2.0385
+ail_cmd = -0.087577
+rud_cmd = -0.03877
+
+u = [T_cmd, dstab_cmd, ail_cmd, rud_cmd]
+
+output_vars = [6,7,8,9,10,11]
+
 # create storage
 x_storage = np.zeros([len(rng),len(x)])
 xdot_storage = np.zeros([len(rng),len(xdot)])
+A = np.zeros([len(x),len(x),len(rng)])
+B = np.zeros([len(x),len(u),len(rng)])
+C = np.zeros([len(output_vars),len(x),len(rng)])
+D = np.zeros([len(output_vars),len(u),len(rng)])
 
-#linearisation eps
-eps = 1e-05
 
 def upd_thrust(T_cmd, T_state, time_step):
     # command saturation
@@ -193,32 +207,7 @@ def linearise(x, u, output_vars, fi_flag, nlplant, eps):
     
     return A, B, C, D
 
-    
-T_cmd = 2886.6468
-dstab_cmd = -2.0385
-ail_cmd = -0.087577
-rud_cmd = -0.03877
-
-u = [T_cmd, dstab_cmd, ail_cmd, rud_cmd]
-
-x = upd_sim(x, u, fi_flag, time_step, nlplant)
-
-output_vars = [6,7,8,9,10,11]
-
-[A, B, C, D] = linearise(x, u, output_vars, fi_flag, nlplant, eps)
-
-exit()
-
-
-# def jac():
-#     pass
-
 tic()
-
-A = np.zeros([len(x),len(x)])
-B = np.zeros([len(x),len(u)])
-C = np.zeros([len(output_vars),len(x)])
-D = np.zeros([len(output_vars),len(u)])
 
 for idx, val in enumerate(rng):
     
@@ -226,23 +215,7 @@ for idx, val in enumerate(rng):
     #------------linearise model-------------#
     #----------------------------------------#
     
-    # Perturb each of the state variables and compute linearization
-    for i in range(len(x)):
-        
-        dx = np.zeros((len(x),))
-        dx[i] = eps
-        
-        A[:, i] = (calc_xdot(x + dx, u, fi_flag, nlplant) - calc_xdot(x, u, fi_flag, nlplant)) / eps
-        C[:, i] = (calc_out(x + dx, u, output_vars) - calc_out(x, u, output_vars)) / eps
-        
-    # Perturb each of the input variables and compute linearization
-    for i in range(len(u)):
-        
-        du = np.zeros((len(u),))
-        du[i] = eps
-                
-        B[:, i] = (calc_xdot(x, u + du, fi_flag, nlplant) - calc_xdot(x, u, fi_flag, nlplant)) / eps
-        D[:, i] = (calc_out(x, u + du, output_vars) - calc_out(x, u, output_vars)) / eps
+    [A[:,:,idx], B[:,:,idx], C[:,:,idx], D[:,:,idx]] = linearise(x, u, output_vars, fi_flag, nlplant, eps)
     
     #----------------------------------------#
     #--------------Take Action---------------#
