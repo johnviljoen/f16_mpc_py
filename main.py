@@ -308,6 +308,54 @@ def linearise(x, u, output_vars, fi_flag, nlplant, eps):
     
     return A, B, C, D
 
+def MC(hzn, A, B):
+    
+    # hzn is the horizon
+    nstates = A.shape[0]
+    ninputs = B.shape[1]
+    
+    # x0 is the initial state vector of shape (nstates, 1)
+    # u is the matrix of input vectors over the course of the prediction of shape (ninputs,horizon)
+    
+    # initialise CC, MM, Bz
+    CC = np.zeros([nstates*hzn, ninputs*hzn])
+    MM = np.zeros([nstates*hzn, nstates])
+    Bz = np.zeros([nstates, ninputs])
+    
+    for i in range(hzn):
+        MM[nstates*i:nstates*(i+1),:] = np.linalg.matrix_power(A,i+1)
+        for j in range(hzn):
+            if i-j >= 0:
+                CC[nstates*i:nstates*(i+1),ninputs*j:ninputs*(j+1)] = np.matmul(np.linalg.matrix_power(A,(i-j)),B)
+            else:
+                CC[nstates*i:nstates*(i+1),ninputs*j:ninputs*(j+1)] = Bz
+
+    return MM, CC
+
+def dmom(mat, num_mats):
+    # diagonal matrix of matrices -> dmom
+    
+    # dimension extraction
+    nrows = mat.shape[0]
+    ncols = mat.shape[1]
+    
+    # matrix of matrices matomats -> I thought it sounded cool
+    matomats = np.zeros((nrows*num_mats,ncols*num_mats))
+    
+    for i in range(num_mats):
+        for j in range(num_mats):
+            if i == j:
+                matomats[nrows*i:nrows*(i+1),ncols*j:ncols*(j+1)] = mat
+                
+    return matomats
+
+def x_traj(hzn, A, B, x0):
+    
+    x1 = np.matmul(A,x0) + np.matmul(B, u_seq[0,:])
+    x2 = np.matmul(np.linalg.matrix_power(A,2),x0) + np.matmul(np.matmul(A, B),u_seq[0]) + np.matmul(B, u_seq[1])
+    
+    return x1, x2
+
 rng = np.linspace(time_start, time_end, int((time_end-time_start)/time_step))
 bar = progressbar.ProgressBar(maxval=len(rng)).start()
 
@@ -334,6 +382,31 @@ B = np.zeros([len(x),len(u),len(rng)])
 C = np.zeros([len(output_vars),len(x),len(rng)])
 D = np.zeros([len(output_vars),len(u),len(rng)])
 
+hzn = 5
+
+A,B,C,D = linearise(x, u, output_vars, fi_flag, nlplant, eps)
+
+# the correct shape according to lec2-p4 of slides
+u_seq = np.block([[u],[u],[u],[u],[u]])
+
+# the correct shape according to lec2-p4 slides also
+#x_seq = np.array([x1, x2, x3,...@t0],[x1, x2, x3,.. @t1]...)
+
+MM, CC = MC(hzn, A, B)
+
+# 
+Q = np.matmul(C.T,C)
+
+# 
+Q_mat = dmom(Q, hzn)
+
+# terminal weight matrix
+P = Q # make equal to Q for this
+
+x1, x2 = x_traj(hzn, A, B, x)
+
+exit()
+
 tic()
 
 for idx, val in enumerate(rng):
@@ -347,6 +420,10 @@ for idx, val in enumerate(rng):
     #----------------------------------------#
     #--------------Take Action---------------#
     #----------------------------------------#
+    
+    # predict
+    
+    CC, MM = predict(hzn, A[:,:,idx], B[:,:,idx], x, u)
     
     
     
