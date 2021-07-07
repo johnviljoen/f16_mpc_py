@@ -12,7 +12,9 @@ from sim import calc_xdot, calc_out
 
 # In[]
 
-def linearise(x, u, output_vars, fi_flag, nlplant, eps):
+def linearise(x, u, output_vars, fi_flag, nlplant):
+    
+    eps = 1e-06
     
     A = np.zeros([len(x),len(x)])
     B = np.zeros([len(x),len(u)])

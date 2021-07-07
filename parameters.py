@@ -27,7 +27,13 @@ fi_flag = 1
 # stability_flag = 0 -> stable xcg 25% model
 stab_flag = 0
 
-# In[initial_conditions mk2]  
+# In[MPC parameters]
+
+hzn = 10
+
+pred_dt = 0.001
+
+# In[initial_conditions]  
 
 ''' states in m/s, rad, rad/s '''
 npos        = 0.                # m
@@ -44,12 +50,12 @@ p           = 0.                # rad/s
 q           = 0.                # rad/s
 r           = 0.                # rad/s
 
-''' control states in rad '''
-T           = 2886.6468
-dh          = -2.0385           #
-da          = -0.087577         #
-dr          = -0.03877          #
-lef         = 0.3986
+''' control states in lbs, deg '''
+T           = 2886.6468         # lbs
+dh          = -2.0385           # deg
+da          = -0.087577         # deg
+dr          = -0.03877          # deg
+lef         = 0.3986            # deg
 
 # In[limits]
 
@@ -93,18 +99,21 @@ lef_max         = 25            # (deg)
 
 # In[wrap for input]  
 
-initial_state_vector = np.array([npos, epos, h, phi, theta, psi, vt, alpha, beta, p, q, r, T, dh, da, dr, lef, fi_flag])
+# initial_state_vector = np.array([npos, epos, h, phi, theta, psi, vt, alpha, beta, p, q, r, T, dh, da, dr, lef, fi_flag])
+
+simulation_parameters = [time_step, time_start, time_end, stab_flag, fi_flag]
+
+paras_mpc = [hzn, pred_dt]
 
 m2f = 3.28084 # metres to feet conversion
 f2m = 1/m2f # feet to metres conversion
-
 initial_state_vector_ft_rad = np.array([npos*m2f, epos*m2f, h*m2f, phi, theta, psi, vt*m2f, alpha, beta, p, q, r, T, dh, da, dr, lef, -alpha*180/pi])
     
-simulation_parameters = [time_step, time_start, time_end, stab_flag, fi_flag]
+act_lim = [[T_max, dh_max, da_max, dr_max, lef_max],
+           [T_min, dh_min, da_min, dr_min, lef_min]]
 
-act_lim = [[T_max, dh_max, da_max, dr_max, lef_max],[T_min, dh_min, da_min, dr_min, lef_min]]
-
-x_lim = [[npos_max, epos_max, h_max, phi_max, theta_max, psi_max, V_max, alpha_max, beta_max, p_max, q_max, r_max],[npos_min, epos_min, h_min, phi_min, theta_min, psi_min, V_min, alpha_min, beta_min, p_min, q_min, r_min]]
+x_lim = [[npos_max, epos_max, h_max, phi_max, theta_max, psi_max, V_max, alpha_max, beta_max, p_max, q_max, r_max],
+         [npos_min, epos_min, h_min, phi_min, theta_min, psi_min, V_min, alpha_min, beta_min, p_min, q_min, r_min]]
 
 # In[additional info provided for brevity]
 

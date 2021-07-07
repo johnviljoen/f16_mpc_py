@@ -7,19 +7,18 @@ import os
 
 # import numpy and sin, cos for convenience
 import numpy as np
-from numpy import pi
 
 # handbuilt functions for all this
 from utils import tic, toc, vis
 from trim import trim
-from sim import calc_xdot, upd_sim, calc_out
+from sim import upd_sim
 from mpc import linearise, MC, dmom
 
 # import progressbar for convenience
 import progressbar
 
 # import parameters
-from parameters import initial_state_vector_ft_rad, simulation_parameters
+from parameters import initial_state_vector_ft_rad, simulation_parameters, paras_mpc
 
 # import exit() function for debugging
 from sys import exit
@@ -51,27 +50,20 @@ x = initial_state_vector_ft_rad
 #---------------------------------Simulate-----------------------------------#
 #----------------------------------------------------------------------------#
 
-def x_traj(hzn, A, B, x0):
-    
-    x1 = np.matmul(A,x0) + np.matmul(B, u_seq[0,:])
-    x2 = np.matmul(np.linalg.matrix_power(A,2),x0) + np.matmul(np.matmul(A, B),u_seq[0]) + np.matmul(B, u_seq[1])
-    
-    return x1, x2
+def lin_x_traj(hzn, A, B, x0, dt, u_seq):
+    x = np.zeros((hzn+1, len(x0)))
+    x[0,:] = x0
+    for i in range(hzn):
+        x[i+1,:] = x[i,:] + (np.matmul(A,x[i,:]) + np.matmul(B, u_seq[i,:])) * dt
+    return x[1:]
 
-def x_traj_nl(hzn, x0, u_seq, nlplant, dt):
-    x_temp = np.zeros([len(x0)])
-    x_seq = np.zeros((hzn,len(x0)))
-    for idx in range(hzn):
-        x_temp = upd_sim(x, u[idx,:], fi_flag, dt, nlplant)
-        x_seq[idx,:] = x_temp
-    return x_seq 
-        
-
-rng = np.linspace(time_start, time_end, int((time_end-time_start)/time_step))
-bar = progressbar.ProgressBar(maxval=len(rng)).start()
-
-#linearisation eps
-eps = 1e-05
+# def nl_x_traj(hzn, x0, u_seq, nlplant, dt):
+#     x_temp = np.zeros([len(x0)])
+#     x_seq = np.zeros((hzn,len(x0)))
+#     for idx in range(hzn):
+#         x_temp = upd_sim(x, u[idx,:], fi_flag, dt, nlplant)
+#         x_seq[idx,:] = x_temp
+#     return x_seq 
 
 output_vars = [6,7,8,9,10,11]
 
@@ -83,6 +75,38 @@ x, opt_res = trim(h_t, v_t, fi_flag, nlplant)
 
 u = x[12:16]
 
+A,B,C,D = linearise(x, u, output_vars, fi_flag, nlplant)
+
+# vert stack
+u_seq = np.array([u] * paras_mpc[0])
+u_seq_flat = u_seq.reshape(u_seq.shape[0]*u_seq.shape[1],)
+
+x_seq = lin_x_traj(paras_mpc[0], A, B, x, paras_mpc[1], u_seq)
+
+MM, CC = MC(paras_mpc[0], A, B, paras_mpc[1])
+
+x_seq2 = np.matmul(MM, x) + np.matmul(CC, u_seq_flat)
+
+######################TESTING##################
+
+A = np.array([[1.1, 2],[0, 0.95]])
+B = np.array([[0],[0.0787]])
+C = np.array([-1,1])
+hzn = 4
+
+MM, CC = MC(hzn, A, B, 1)
+
+Q = np.matmul(C.T,C)
+
+#Q_full = dmom(Q, hzn)
+Q_full = np.eye(hzn)
+
+R_full = np.eye(hzn) * 0.01
+
+exit()
+
+rng = np.linspace(time_start, time_end, int((time_end-time_start)/time_step))
+
 # create storage
 x_storage = np.zeros([len(rng),len(x)])
 A = np.zeros([len(x),len(x),len(rng)])
@@ -90,38 +114,7 @@ B = np.zeros([len(x),len(u),len(rng)])
 C = np.zeros([len(output_vars),len(x),len(rng)])
 D = np.zeros([len(output_vars),len(u),len(rng)])
 
-hzn = 5
-
-# A,B,C,D = linearise(x, u, output_vars, fi_flag, nlplant, eps)
-
-# # the correct shape according to lec2-p4 of slides
-# u_seq = np.concatenate([u,u,u,u,u])
-
-# # the correct shape according to lec2-p4 slides also
-# #x_seq = np.array([x1, x2, x3,...@t0],[x1, x2, x3,.. @t1]...)
-
-# MM, CC = MC(hzn, A, B, 1)
-
-# x_seq = np.matmul(MM, x) + np.matmul(CC, u_seq)
-
-# xdotA1 = np.matmul(A,x) + np.matmul(B,u)
-# x1 = x + xdotA1*time_step
-# xdotA2 = np.matmul(A,x1) + np.matmul(B,u)
-# x2 = x1 + xdotA2*time_step
-
-
-# 
-# Q = np.matmul(C.T,C)
-
-# 
-# Q_mat = dmom(Q, hzn)
-
-# terminal weight matrix
-# P = Q # make equal to Q for this
-
-# x1, x2 = x_traj(hzn, A, B, x)
-
-#exit()
+bar = progressbar.ProgressBar(maxval=len(rng)).start()
 
 tic()
 
@@ -138,10 +131,7 @@ for idx, val in enumerate(rng):
     #----------------------------------------#
     
     # predict
-    
     CC, MM = MC(hzn, A[:,:,idx], B[:,:,idx], time_step)
-    
-    
     
     #----------------------------------------#
     #--------------Integrator----------------#
@@ -169,4 +159,3 @@ toc()
 
 vis(x_storage, rng)
 
-# %%
