@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Sat Jul  3 00:06:54 2021
+Created on Wed Jul  7 14:45:08 2021
 
 @author: johnviljoen
 """
 
-# import pi for visualisation rad to deg conversion
-from numpy import pi
 
 # import time for tic toc functions
 import time
 
 # import matplotlib for visualisation
 import matplotlib.pyplot as plt
+
+
+from numpy import pi
+
 
 # In[]
 
@@ -39,8 +41,6 @@ def tic():
     # Records a time in TicToc, marks the beginning of a time interval
     toc(False)
     
-
-
 # In[]
 
 def vis(x_storage, rng):
