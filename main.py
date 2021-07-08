@@ -12,7 +12,7 @@ import numpy as np
 from utils import tic, toc, vis
 from trim import trim
 from sim import upd_sim
-from mpc import linearise, MC, dmom
+from mpc import linearise, dmom, calc_HFG, calc_MC
 
 # import progressbar for convenience
 import progressbar
@@ -83,25 +83,47 @@ u_seq_flat = u_seq.reshape(u_seq.shape[0]*u_seq.shape[1],)
 
 x_seq = lin_x_traj(paras_mpc[0], A, B, x, paras_mpc[1], u_seq)
 
-MM, CC = MC(paras_mpc[0], A, B, paras_mpc[1])
+MM, CC = calc_MC(paras_mpc[0], A, B, paras_mpc[1])
 
 x_seq2 = np.matmul(MM, x) + np.matmul(CC, u_seq_flat)
 
 ######################TESTING##################
 
+
+
 A = np.array([[1.1, 2],[0, 0.95]])
 B = np.array([[0],[0.0787]])
-C = np.array([-1,1])
+C = np.array([-1,1])[np.newaxis]
 hzn = 4
 
-MM, CC = MC(hzn, A, B, 1)
+Q = np.matmul(C.T, C)
+R = 0.01
 
-Q = np.matmul(C.T,C)
+H, F, G = calc_HFG(A, B, C, hzn, Q, R)
 
-#Q_full = dmom(Q, hzn)
-Q_full = np.eye(hzn)
+x0 = np.array([0,0])[np.newaxis]
 
-R_full = np.eye(hzn) * 0.01
+L = -np.matmul(np.linalg.inv(H),F)
+
+K = L[0,:][np.newaxis]
+
+RHS = Q + np.matmul(K.T,K)
+
+clp = A + np.matmul(B, K)
+
+
+
+##############################################
+
+# A = np.array([[-2, 1],[0, 1]])
+# B = np.array([[1],[1]])
+# C = np.array([1, 1])[np.newaxis]
+
+# K = np.array([2, -1])[np.newaxis]
+
+# RHS = np.matmul(C.T,C) + np.matmul(K.T,K)
+
+# clp = A + np.matmul(B,K)
 
 exit()
 
@@ -124,14 +146,15 @@ for idx, val in enumerate(rng):
     #------------linearise model-------------#
     #----------------------------------------#
     
-    [A[:,:,idx], B[:,:,idx], C[:,:,idx], D[:,:,idx]] = linearise(x, u, output_vars, fi_flag, nlplant, eps)
+    [A[:,:,idx], B[:,:,idx], C[:,:,idx], D[:,:,idx]] = linearise(x, u, output_vars, fi_flag, nlplant)
     
     #----------------------------------------#
     #--------------Take Action---------------#
     #----------------------------------------#
     
-    # predict
-    CC, MM = MC(hzn, A[:,:,idx], B[:,:,idx], time_step)
+    # MPC prediction using squiggly C and M matrices
+    CC, MM = calc_MC(paras_mpc[0], A[:,:,idx], B[:,:,idx], time_step)
+    
     
     #----------------------------------------#
     #--------------Integrator----------------#

@@ -43,7 +43,7 @@ def linearise(x, u, output_vars, fi_flag, nlplant):
 
 # In[]
 
-def MC(hzn, A, B, dt):
+def calc_MC(hzn, A, B, dt):
     
     # hzn is the horizon
     nstates = A.shape[0]
@@ -85,3 +85,50 @@ def dmom(mat, num_mats):
                 matomats[nrows*i:nrows*(i+1),ncols*j:ncols*(j+1)] = mat
                 
     return matomats
+
+# In[]
+
+def calc_HFG(A, B, C, hzn, Q, R):
+    
+    MM, CC = calc_MC(hzn, A, B, 1)
+
+    Q = np.matmul(C.T,C)
+    
+    Q_full = dmom(Q, hzn)
+    # Q_full = np.eye(hzn)
+    
+    R_full = np.eye(hzn) * 0.01
+    
+    H = np.matmul(np.matmul(CC.T, Q_full),CC) + R_full
+    
+    F = np.matmul(np.matmul(CC.T, Q_full), MM)
+    
+    G = np.matmul(np.matmul(MM.T, Q_full), MM)
+    
+    return H, F, G
+
+# In[]
+
+# dual mode predicted HFG
+def calc_dm_HFG(A, B, C, K, hzn, Q, R):
+    
+    MM, CC = calc_MC(hzn, A, B, 1)
+
+    Q = np.matmul(C.T,C)
+    
+    Q_full = dmom(Q, hzn)
+    # Q_full = np.eye(hzn)
+    
+    rhs = Q + np.matmul(np.matmul(K.T,R), K)
+    
+    Qbar = np.array([])
+    
+    R_full = np.eye(hzn) * 0.01
+    
+    H = np.matmul(np.matmul(CC.T, Q_full),CC) + R_full
+    
+    F = np.matmul(np.matmul(CC.T, Q_full), MM)
+    
+    G = np.matmul(np.matmul(MM.T, Q_full), MM)
+    
+    return H, F, G
