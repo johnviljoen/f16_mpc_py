@@ -12,7 +12,7 @@ import numpy as np
 from utils import tic, toc, vis
 from trim import trim
 from sim import upd_sim
-from mpc import linearise, dmom, calc_HFG, calc_MC
+from mpc import linearise, dmom, calc_MC, calc_x_seq, calc_HFG
 
 # import progressbar for convenience
 import progressbar
@@ -22,6 +22,10 @@ from parameters import initial_state_vector_ft_rad, simulation_parameters, paras
 
 # import exit() function for debugging
 from sys import exit
+
+# from scipy.linalg import expm, inv, pinv
+from scipy.signal import cont2discrete
+
 
 # In[]
 
@@ -50,21 +54,6 @@ x = initial_state_vector_ft_rad
 #---------------------------------Simulate-----------------------------------#
 #----------------------------------------------------------------------------#
 
-def lin_x_traj(hzn, A, B, x0, dt, u_seq):
-    x = np.zeros((hzn+1, len(x0)))
-    x[0,:] = x0
-    for i in range(hzn):
-        x[i+1,:] = x[i,:] + (np.matmul(A,x[i,:]) + np.matmul(B, u_seq[i,:])) * dt
-    return x[1:]
-
-# def nl_x_traj(hzn, x0, u_seq, nlplant, dt):
-#     x_temp = np.zeros([len(x0)])
-#     x_seq = np.zeros((hzn,len(x0)))
-#     for idx in range(hzn):
-#         x_temp = upd_sim(x, u[idx,:], fi_flag, dt, nlplant)
-#         x_seq[idx,:] = x_temp
-#     return x_seq 
-
 output_vars = [6,7,8,9,10,11]
 
 # trim aircraft
@@ -75,41 +64,62 @@ x, opt_res = trim(h_t, v_t, fi_flag, nlplant)
 
 u = x[12:16]
 
-A,B,C,D = linearise(x, u, output_vars, fi_flag, nlplant)
+# find the continuous time A,B,C,D
+A_c, B_c, C_c, D_c = linearise(x, u, output_vars, fi_flag, nlplant)
 
-# vert stack
-u_seq = np.array([u] * paras_mpc[0])
-u_seq_flat = u_seq.reshape(u_seq.shape[0]*u_seq.shape[1],)
+# calculate the discrete time A,B,C,D
+A_d, B_d, C_d, D_d = cont2discrete((A_c, B_c, C_c, D_c), time_step)[0:4]
 
-x_seq = lin_x_traj(paras_mpc[0], A, B, x, paras_mpc[1], u_seq)
+# turn x, u into matrices
+x = x[np.newaxis].T
+u = u[np.newaxis].T
 
-MM, CC = calc_MC(paras_mpc[0], A, B, paras_mpc[1])
+# stack u's vertically
+u_seq_vert = np.concatenate(tuple(u for _ in range(paras_mpc[0])))
 
-x_seq2 = np.matmul(MM, x) + np.matmul(CC, u_seq_flat)
+# calculate the sequence of x
+x_seq = calc_x_seq(A_d, B_d, x, u_seq_vert, paras_mpc[0])
+
+
+K = np.zeros((4,18))
+
+K[0,12] = 1
+K[1,13] = 20.2
+K[2,14] = 20.2
+K[3,15] = 20.2
+
+R = 0.01
+
+H, F, G = calc_HFG(A_d, B_d, C_d, K, R, paras_mpc[0])
+
+
+
+
+exit()
 
 ######################TESTING##################
 
 
 
-A = np.array([[1.1, 2],[0, 0.95]])
-B = np.array([[0],[0.0787]])
-C = np.array([-1,1])[np.newaxis]
-hzn = 4
+# A = np.array([[1.1, 2],[0, 0.95]])
+# B = np.array([[0],[0.0787]])
+# C = np.array([-1,1])[np.newaxis]
+# hzn = 4
 
-Q = np.matmul(C.T, C)
-R = 0.01
+# Q = np.matmul(C.T, C)
+# R = 0.01
 
-H, F, G = calc_HFG(A, B, C, hzn, Q, R)
+# H, F, G = calc_HFG(A, B, C, hzn, Q, R)
 
-x0 = np.array([0,0])[np.newaxis]
+# x0 = np.array([0,0])[np.newaxis]
 
-L = -np.matmul(np.linalg.inv(H),F)
+# L = -np.matmul(np.linalg.inv(H),F)
 
-K = L[0,:][np.newaxis]
+# K = L[0,:][np.newaxis]
 
-RHS = Q + np.matmul(K.T,K)
+# RHS = Q + np.matmul(K.T,K)
 
-clp = A + np.matmul(B, K)
+# clp = A + np.matmul(B, K)
 
 
 
@@ -124,6 +134,12 @@ clp = A + np.matmul(B, K)
 # RHS = np.matmul(C.T,C) + np.matmul(K.T,K)
 
 # clp = A + np.matmul(B,K)
+
+
+
+
+
+# scipy.linalg.solve_discrete_lyapunov
 
 exit()
 

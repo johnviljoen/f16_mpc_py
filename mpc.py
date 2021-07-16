@@ -10,6 +10,8 @@ import numpy as np
 
 from sim import calc_xdot, calc_out
 
+from scipy.linalg import solve_discrete_lyapunov
+
 # In[]
 
 def linearise(x, u, output_vars, fi_flag, nlplant):
@@ -43,8 +45,8 @@ def linearise(x, u, output_vars, fi_flag, nlplant):
 
 # In[]
 
-def calc_MC(hzn, A, B, dt):
-    
+def calc_MC(A, B, hzn):
+
     # hzn is the horizon
     nstates = A.shape[0]
     ninputs = B.shape[1]
@@ -58,14 +60,47 @@ def calc_MC(hzn, A, B, dt):
     Bz = np.zeros([nstates, ninputs])
     
     for i in range(hzn):
-        MM[nstates*i:nstates*(i+1),:] = np.linalg.matrix_power(A,i+1) * dt ** (i+1)
+        MM[nstates*i:nstates*(i+1),:] = np.linalg.matrix_power(A,i+1)
         for j in range(hzn):
             if i-j >= 0:
-                CC[nstates*i:nstates*(i+1),ninputs*j:ninputs*(j+1)] = np.matmul(np.linalg.matrix_power(A,(i-j)),B) * dt ** (i-j+1)
+                CC[nstates*i:nstates*(i+1),ninputs*j:ninputs*(j+1)] = np.matmul(np.linalg.matrix_power(A,(i-j)),B)
             else:
                 CC[nstates*i:nstates*(i+1),ninputs*j:ninputs*(j+1)] = Bz
 
     return MM, CC
+
+# In[]
+
+def calc_x_seq(A_d, B_d, x0, u_seq, hzn):
+    
+    # find MM, CC
+    MM, CC = calc_MC(A_d, B_d, hzn)
+    
+    return np.matmul(MM,x0) + np.matmul(CC,u_seq)
+
+# In[]
+
+def calc_HFG(A_d, B_d, C_d, K, R, hzn):
+    
+    # calculate Q_mat
+    Q = np.matmul(C_d.T, C_d)
+    
+    # calc R_mat
+    R_mat = np.eye(B_d.shape[1]) * R
+    
+    Q_bar = solve_discrete_lyapunov((A_d + np.matmul(B_d, K)).T, Q + np.matmul(np.matmul(K.T,R_mat), K))
+    
+    Q_mat = dmom(Q, hzn)
+    
+    Q_mat[-Q.shape[0]:, -Q.shape[1]:] = Q_bar
+    
+    MM, CC = calc_MC(A_d, B_d, hzn)
+    
+    H = np.matmul(np.matmul(CC.T,Q_mat),CC) + dmom(R_mat,hzn)
+    F = np.matmul(np.matmul(CC.T,Q_mat),MM)
+    G = np.matmul(np.matmul(MM.T,Q_mat),MM)
+    
+    return H, F, G
 
 # In[]
 
@@ -88,24 +123,24 @@ def dmom(mat, num_mats):
 
 # In[]
 
-def calc_HFG(A, B, C, hzn, Q, R):
+# def calc_HFG(A, B, C, hzn, Q, R):
     
-    MM, CC = calc_MC(hzn, A, B, 1)
+#     MM, CC = calc_MC(hzn, A, B, 1)
 
-    Q = np.matmul(C.T,C)
+#     Q = np.matmul(C.T,C)
     
-    Q_full = dmom(Q, hzn)
-    # Q_full = np.eye(hzn)
+#     Q_full = dmom(Q, hzn)
+#     # Q_full = np.eye(hzn)
     
-    R_full = np.eye(hzn) * 0.01
+#     R_full = np.eye(hzn) * 0.01
     
-    H = np.matmul(np.matmul(CC.T, Q_full),CC) + R_full
+#     H = np.matmul(np.matmul(CC.T, Q_full),CC) + R_full
     
-    F = np.matmul(np.matmul(CC.T, Q_full), MM)
+#     F = np.matmul(np.matmul(CC.T, Q_full), MM)
     
-    G = np.matmul(np.matmul(MM.T, Q_full), MM)
+#     G = np.matmul(np.matmul(MM.T, Q_full), MM)
     
-    return H, F, G
+#     return H, F, G
 
 # In[]
 
