@@ -92,7 +92,10 @@ R = 0.01
 
 H, F, G = calc_HFG(A_d, B_d, C_d, K, R, paras_mpc[0])
 
+# immediate K to apply
+K = -np.matmul(np.linalg.inv(H), F)[0:B_d.shape[1],:]
 
+u_next = np.matmul(K,x)
 
 
 exit()
