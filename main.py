@@ -64,11 +64,11 @@ x, opt_res = trim(h_t, v_t, fi_flag, nlplant)
 
 u = x[12:16]
 
-# find the continuous time A,B,C,D
-A_c, B_c, C_c, D_c = linearise(x, u, output_vars, fi_flag, nlplant)
+# # find the continuous time A,B,C,D
+# A_c, B_c, C_c, D_c = linearise(x, u, output_vars, fi_flag, nlplant)
 
-# calculate the discrete time A,B,C,D
-A_d, B_d, C_d, D_d = cont2discrete((A_c, B_c, C_c, D_c), time_step)[0:4]
+# # calculate the discrete time A,B,C,D
+# A_d, B_d, C_d, D_d = cont2discrete((A_c, B_c, C_c, D_c), time_step)[0:4]
 
 # turn x, u into matrices
 x = x[np.newaxis].T
@@ -78,7 +78,7 @@ u = u[np.newaxis].T
 u_seq_vert = np.concatenate(tuple(u for _ in range(paras_mpc[0])))
 
 # calculate the sequence of x
-x_seq = calc_x_seq(A_d, B_d, x, u_seq_vert, paras_mpc[0])
+# x_seq = calc_x_seq(A_d, B_d, x, u_seq_vert, paras_mpc[0])
 
 
 K = np.zeros((4,18))
@@ -90,15 +90,15 @@ K[3,15] = 20.2
 
 R = 0.01
 
-H, F, G = calc_HFG(A_d, B_d, C_d, K, R, paras_mpc[0])
+# H, F, G = calc_HFG(A_d, B_d, C_d, K, R, paras_mpc[0])
 
-# immediate K to apply
-K = -np.matmul(np.linalg.inv(H), F)[0:B_d.shape[1],:]
+# # immediate K to apply
+# K = -np.matmul(np.linalg.inv(H), F)[0:B_d.shape[1],:]
 
 u_next = np.matmul(K,x)
 
 
-exit()
+# exit()
 
 ######################TESTING##################
 
@@ -144,7 +144,7 @@ exit()
 
 # scipy.linalg.solve_discrete_lyapunov
 
-exit()
+# exit()
 
 rng = np.linspace(time_start, time_end, int((time_end-time_start)/time_step))
 
@@ -154,6 +154,8 @@ A = np.zeros([len(x),len(x),len(rng)])
 B = np.zeros([len(x),len(u),len(rng)])
 C = np.zeros([len(output_vars),len(x),len(rng)])
 D = np.zeros([len(output_vars),len(u),len(rng)])
+
+
 
 bar = progressbar.ProgressBar(maxval=len(rng)).start()
 
@@ -172,7 +174,7 @@ for idx, val in enumerate(rng):
     #----------------------------------------#
     
     # MPC prediction using squiggly C and M matrices
-    CC, MM = calc_MC(paras_mpc[0], A[:,:,idx], B[:,:,idx], time_step)
+    #CC, MM = calc_MC(paras_mpc[0], A[:,:,idx], B[:,:,idx], time_step)
     
     
     #----------------------------------------#
@@ -185,7 +187,7 @@ for idx, val in enumerate(rng):
     #------------Store History---------------#
     #----------------------------------------#
     
-    x_storage[idx,:] = x
+    x_storage[idx,:] = x[:,0]
     
     bar.update(idx)
 

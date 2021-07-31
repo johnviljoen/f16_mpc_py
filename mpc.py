@@ -12,6 +12,8 @@ from sim import calc_xdot, calc_out
 
 from scipy.linalg import solve_discrete_lyapunov
 
+from sys import exit
+
 # In[]
 
 def linearise(x, u, output_vars, fi_flag, nlplant):
@@ -26,20 +28,20 @@ def linearise(x, u, output_vars, fi_flag, nlplant):
     # Perturb each of the state variables and compute linearization
     for i in range(len(x)):
         
-        dx = np.zeros((len(x),))
+        dx = np.zeros([len(x),1])
         dx[i] = eps
         
-        A[:, i] = (calc_xdot(x + dx, u, fi_flag, nlplant) - calc_xdot(x, u, fi_flag, nlplant)) / eps
-        C[:, i] = (calc_out(x + dx, u, output_vars) - calc_out(x, u, output_vars)) / eps
+        A[:, i] = (calc_xdot(x + dx, u, fi_flag, nlplant)[:,0] - calc_xdot(x, u, fi_flag, nlplant)[:,0]) / eps
+        C[:, i] = (calc_out(x + dx, u, output_vars)[:,0] - calc_out(x, u, output_vars)[:,0]) / eps
         
     # Perturb each of the input variables and compute linearization
     for i in range(len(u)):
         
-        du = np.zeros((len(u),))
+        du = np.zeros([len(u),1])
         du[i] = eps
                 
-        B[:, i] = (calc_xdot(x, u + du, fi_flag, nlplant) - calc_xdot(x, u, fi_flag, nlplant)) / eps
-        D[:, i] = (calc_out(x, u + du, output_vars) - calc_out(x, u, output_vars)) / eps
+        B[:, i] = (calc_xdot(x, u + du, fi_flag, nlplant)[:,0] - calc_xdot(x, u, fi_flag, nlplant)[:,0]) / eps
+        D[:, i] = (calc_out(x, u + du, output_vars)[:,0] - calc_out(x, u, output_vars)[:,0]) / eps
     
     return A, B, C, D
 
