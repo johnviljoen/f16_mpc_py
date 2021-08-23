@@ -12,7 +12,7 @@ import numpy as np
 from utils import tic, toc, vis
 from trim import trim
 from sim import upd_sim
-from mpc import linearise, dmom, calc_MC, calc_x_seq, calc_HFG, dlqr
+from mpc import linearise, dmom, calc_MC, calc_x_seq, calc_HFG, dlqr, square_mat_degen_2d
 
 # import progressbar for convenience
 import progressbar
@@ -82,10 +82,35 @@ B = np.zeros([len(x),len(u),len(rng)])
 C = np.zeros([len(output_vars),len(x),len(rng)])
 D = np.zeros([len(output_vars),len(u),len(rng)])
 
-Q = np.eye(A.shape[0])
-R = np.eye(B.shape[1])
+# Q = np.eye(A.shape[0])
+# Q[0,0] = 0
+# Q[1,1] = 0
+# Q[2,2] = 0.1
+# Q[3,3] = 0.1
+# Q[4,4] = 0.1
+# Q[5,5] = 0
+# Q[6,6] = 0.5
+# Q[7,7] = 1
+# Q[8,8] = 1
+# Q[9,9] = 100
+# Q[10,10] = 100
+# Q[11,11] = 100
 
+# Q[12,12] = 0
+# Q[13,13] = 0
+# Q[14,14] = 0
+# Q[15,15] = 0
+# Q[16,16] = 0
+# Q[17,17] = 0
 
+# R = np.eye(B.shape[1])
+# R[0,0] = 1000
+# R[1,1] = 10
+# R[2,2] = 100
+# R[3,3] = 1
+
+Q = np.eye(9)
+R = np.eye(4)
 
 bar = progressbar.ProgressBar(maxval=len(rng)).start()
 
@@ -98,13 +123,21 @@ for idx, val in enumerate(rng):
     #----------------------------------------#
     
     [A[:,:,idx], B[:,:,idx], C[:,:,idx], D[:,:,idx]] = linearise(x, u, output_vars, fi_flag, nlplant)
+    Ad, Bd, Cd, Dd = cont2discrete((A[:,:,idx],B[:,:,idx],C[:,:,idx],D[:,:,idx]), time_step)[0:4]
     
     #----------------------------------------#
     #--------------Take Action---------------#
     #----------------------------------------#
     
-    K = dlqr(A[:,:,idx],B[:,:,idx],Q,R)
-    u = - (K @ (x - x0))
+    degen_idx = [2,3,4,6,7,8,9,10,11]
+    Ad = square_mat_degen_2d(Ad, degen_idx)
+    Bd = np.vstack((Bd[2:5,:], Bd[6:12,:]))
+    
+    x_degen = np.array([x[i] for i in degen_idx])
+    x0_degen = np.array([x0[i] for i in degen_idx])
+    
+    K = dlqr(Ad,Bd,Q,R)
+    u = - (K @ (x_degen - x0_degen))
     
     
     #----------------------------------------#

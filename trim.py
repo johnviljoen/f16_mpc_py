@@ -112,8 +112,17 @@ def trim(h_t, v_t, fi_flag, nlplant):
     aileron = 0.01          # aileron, degrees
     
     UX0 = [thrust, elevator, alpha, rudder, aileron]
+    
+    options={
+        'gtol': 1e-05,
+        'norm': np.inf,
+        'eps': 1.4901161193847656e-08,
+        'maxiter': 10000,
+        'disp': False,
+        'return_all': False,
+        'finite_diff_rel_step': None}
             
-    opt = minimize(obj_func, UX0, args=((h_t, v_t, fi_flag, nlplant)), method='Nelder-Mead',tol=1e-10,options={'maxiter':5e+04})
+    opt = minimize(obj_func, UX0, args=((h_t, v_t, fi_flag, nlplant)), method='BFGS',tol=1e-14,options=options)
     
     P3_t, dstab_t, da_t, dr_t, alpha_t  = opt.x
     

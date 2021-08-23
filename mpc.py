@@ -46,11 +46,21 @@ def dlqr(A,B,Q,R):
     K = np.array(scipy.linalg.inv(B.T @ P @ B+R) @ (B.T @ P @ A))
     return K
 
+def square_mat_degen_2d(mat, degen_idx):
+    
+    degen_mat = np.zeros([len(degen_idx),len(degen_idx)])
+    
+    for i in range(len(degen_idx)):
+        
+        degen_mat[:,i] = mat[degen_idx, [degen_idx[i] for x in range(len(degen_idx))]]
+        
+    return degen_mat
+
 # In[]
 
 def linearise(x, u, output_vars, fi_flag, nlplant):
     
-    eps = 1e-06
+    eps = 1e-05
     
     A = np.zeros([len(x),len(x)])
     B = np.zeros([len(x),len(u)])
