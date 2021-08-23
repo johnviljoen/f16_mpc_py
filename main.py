@@ -12,7 +12,7 @@ import numpy as np
 from utils import tic, toc, vis
 from trim import trim
 from sim import upd_sim
-from mpc import linearise, dmom, calc_MC, calc_x_seq, calc_HFG
+from mpc import linearise, dmom, calc_MC, calc_x_seq, calc_HFG, dlqr
 
 # import progressbar for convenience
 import progressbar
@@ -62,89 +62,16 @@ v_t = 700
 
 x, opt_res = trim(h_t, v_t, fi_flag, nlplant)
 
+
+
 u = x[12:16]
-
-# # find the continuous time A,B,C,D
-# A_c, B_c, C_c, D_c = linearise(x, u, output_vars, fi_flag, nlplant)
-
-# # calculate the discrete time A,B,C,D
-# A_d, B_d, C_d, D_d = cont2discrete((A_c, B_c, C_c, D_c), time_step)[0:4]
+# x = x[np.newaxis].T
 
 # turn x, u into matrices
 x = x[np.newaxis].T
 u = u[np.newaxis].T
+x0 = np.copy(x)
 
-# stack u's vertically
-u_seq_vert = np.concatenate(tuple(u for _ in range(paras_mpc[0])))
-
-# calculate the sequence of x
-# x_seq = calc_x_seq(A_d, B_d, x, u_seq_vert, paras_mpc[0])
-
-
-K = np.zeros((4,18))
-
-K[0,12] = 1
-K[1,13] = 20.2
-K[2,14] = 20.2
-K[3,15] = 20.2
-
-R = 0.01
-
-# H, F, G = calc_HFG(A_d, B_d, C_d, K, R, paras_mpc[0])
-
-# # immediate K to apply
-# K = -np.matmul(np.linalg.inv(H), F)[0:B_d.shape[1],:]
-
-u_next = np.matmul(K,x)
-
-
-# exit()
-
-######################TESTING##################
-
-
-
-# A = np.array([[1.1, 2],[0, 0.95]])
-# B = np.array([[0],[0.0787]])
-# C = np.array([-1,1])[np.newaxis]
-# hzn = 4
-
-# Q = np.matmul(C.T, C)
-# R = 0.01
-
-# H, F, G = calc_HFG(A, B, C, hzn, Q, R)
-
-# x0 = np.array([0,0])[np.newaxis]
-
-# L = -np.matmul(np.linalg.inv(H),F)
-
-# K = L[0,:][np.newaxis]
-
-# RHS = Q + np.matmul(K.T,K)
-
-# clp = A + np.matmul(B, K)
-
-
-
-##############################################
-
-# A = np.array([[-2, 1],[0, 1]])
-# B = np.array([[1],[1]])
-# C = np.array([1, 1])[np.newaxis]
-
-# K = np.array([2, -1])[np.newaxis]
-
-# RHS = np.matmul(C.T,C) + np.matmul(K.T,K)
-
-# clp = A + np.matmul(B,K)
-
-
-
-
-
-# scipy.linalg.solve_discrete_lyapunov
-
-# exit()
 
 rng = np.linspace(time_start, time_end, int((time_end-time_start)/time_step))
 
@@ -154,6 +81,9 @@ A = np.zeros([len(x),len(x),len(rng)])
 B = np.zeros([len(x),len(u),len(rng)])
 C = np.zeros([len(output_vars),len(x),len(rng)])
 D = np.zeros([len(output_vars),len(u),len(rng)])
+
+Q = np.eye(A.shape[0])
+R = np.eye(B.shape[1])
 
 
 
@@ -173,8 +103,8 @@ for idx, val in enumerate(rng):
     #--------------Take Action---------------#
     #----------------------------------------#
     
-    # MPC prediction using squiggly C and M matrices
-    #CC, MM = calc_MC(paras_mpc[0], A[:,:,idx], B[:,:,idx], time_step)
+    K = dlqr(A[:,:,idx],B[:,:,idx],Q,R)
+    u = - (K @ (x - x0))
     
     
     #----------------------------------------#

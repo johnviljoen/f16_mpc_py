@@ -34,9 +34,11 @@ class F16(gym.Env):
         super().__init__()
         
         # system state
-        self.x = x0[np.newaxis].T
+        self.x = np.copy(x0[np.newaxis].T)
+        self.x0 = np.copy(x0[np.newaxis].T)
         # input demand
-        self.u = u0[np.newaxis].T
+        self.u = np.copy(u0[np.newaxis].T)
+        self.u0 = np.copy(u0[np.newaxis].T)
         # output state indices
         self.y_vars = [6,7,8,9,10,11]
         # measured state indices
@@ -129,8 +131,8 @@ class F16(gym.Env):
         return self.x
     
     def reset(self):
-        self.x = x0[np.newaxis].T
-        self.u = u0[np.newaxis].T
+        self.x = np.copy(self.x0)
+        self.u = np.copy(self.u0)
         
     def get_obs(self, x, u):
         return x[self.y_vars]
@@ -281,6 +283,9 @@ class F16(gym.Env):
         
         return A, B, C, D        
         
+# make starting array immutable to cause error if used innapropriately
+x0.flags.writeable = False
+
 # instantiate the object
 f16 = F16(x0, x0[12:16], paras_sim)
 
